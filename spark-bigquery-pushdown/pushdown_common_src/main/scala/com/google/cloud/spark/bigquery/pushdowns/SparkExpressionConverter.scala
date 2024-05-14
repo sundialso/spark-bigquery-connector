@@ -246,8 +246,8 @@ abstract class SparkExpressionConverter {
 
       case Pi() => ConstantString("bqutil.fn.pi()").toStatement
 
-      case PromotePrecision(child) => convertStatement(child, fields)
-
+//      case PromotePrecision(child) => convertStatement(child, fields)
+//
       case _: UnaryMinus =>
         convertUnaryMinusExpression(expression, fields)
 
