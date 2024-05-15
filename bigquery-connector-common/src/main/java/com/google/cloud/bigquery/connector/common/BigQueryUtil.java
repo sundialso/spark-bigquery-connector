@@ -75,8 +75,8 @@ public class BigQueryUtil {
   // See https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#numeric-type
   public static final int DEFAULT_NUMERIC_PRECISION = 38;
   public static final int DEFAULT_NUMERIC_SCALE = 9;
-  public static final int DEFAULT_BIG_NUMERIC_PRECISION = 76;
-  public static final int DEFAULT_BIG_NUMERIC_SCALE = 38;
+  public static final int DEFAULT_BIG_NUMERIC_PRECISION = 38;
+  public static final int DEFAULT_BIG_NUMERIC_SCALE = 9;
   private static final int NO_VALUE = -1;
   private static final long BIGQUERY_INTEGER_MIN_VALUE = Long.MIN_VALUE;
   static final ImmutableSet<String> INTERNAL_ERROR_MESSAGES =

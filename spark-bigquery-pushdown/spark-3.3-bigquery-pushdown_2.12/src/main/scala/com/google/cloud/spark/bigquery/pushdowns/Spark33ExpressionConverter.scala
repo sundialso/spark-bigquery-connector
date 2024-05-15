@@ -26,7 +26,7 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 class Spark33ExpressionConverter(expressionFactory: SparkExpressionFactory, sparkPlanFactory: SparkPlanFactory) extends SparkExpressionConverter() {
   override def convertScalarSubqueryExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement = {
     expression match {
-      case ScalarSubquery(plan, _, _, joinCond) if joinCond.isEmpty =>
+      case ScalarSubquery(plan, _, _, joinCond, _, _) if joinCond.isEmpty =>
         blockStatement(new Spark33BigQueryStrategy(this, expressionFactory, sparkPlanFactory)
           .generateQueryFromPlan(plan).get.getStatement())
     }
@@ -54,7 +54,7 @@ class Spark33ExpressionConverter(expressionFactory: SparkExpressionFactory, spar
 
   override def convertCastExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement = {
     expression match {
-      case Cast(child, dataType, _, ansiEnabled) if !ansiEnabled =>
+      case Cast(child, dataType, _, evalMode) if evalMode.toString != "ANSI" =>
         performCastExpressionConversion(child, fields, dataType)
     }
   }

@@ -15,30 +15,30 @@
  */
 package com.google.cloud.spark.bigquery;
 
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.*;
+import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.ArrowType.ArrowTypeID;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.spark.sql.types.*;
+import org.apache.spark.sql.vectorized.ColumnVector;
+import org.apache.spark.sql.vectorized.ColumnarArray;
+import org.apache.spark.sql.vectorized.ColumnarMap;
+import org.apache.spark.unsafe.types.UTF8String;
+import org.jetbrains.annotations.NotNull;
+
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.arrow.memory.ArrowBuf;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import org.apache.arrow.vector.*;
-import org.apache.arrow.vector.complex.*;
-
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.ArrowType.ArrowTypeID;
-import org.apache.spark.sql.internal.SQLConf;
-import org.apache.spark.sql.types.*;
-
-import org.apache.spark.sql.vectorized.ColumnVector;
-import org.apache.spark.sql.vectorized.ColumnarArray;
-import org.apache.spark.sql.vectorized.ColumnarMap;
-import org.apache.spark.unsafe.types.UTF8String;
-
-import org.apache.arrow.vector.types.pojo.Field;
 
 /**
  * ArrowSchemaConverter class for accessing values and converting
@@ -349,15 +349,32 @@ public abstract class ArrowSchemaConverter extends ColumnVector {
         return null;
       }
 
-      BigDecimal bigDecimal = ((Decimal256Vector)vector).getObject(rowId);
-      return UTF8String.fromString(bigDecimal.toPlainString());
+      BigDecimal sparkCompatibleBigDecimal = convertToSparkCompatibleBigDecimal(((Decimal256Vector)vector).getObject(rowId));
+      return UTF8String.fromString(sparkCompatibleBigDecimal.toPlainString());
     }
 
     // Implemented this method for reading BigNumeric values
     @Override
     public final Decimal getDecimal(int rowId, int precision, int scale) {
       if (isNullAt(rowId)) return null;
-      return Decimal.apply(((Decimal256Vector)vector).getObject(rowId), precision, scale);
+      BigDecimal sparkCompatibleBigDecimal = convertToSparkCompatibleBigDecimal(((Decimal256Vector)vector).getObject(rowId));
+      return Decimal.apply(sparkCompatibleBigDecimal, sparkCompatibleBigDecimal.precision(), sparkCompatibleBigDecimal.scale());
+    }
+
+    @NotNull
+    private static BigDecimal convertToSparkCompatibleBigDecimal(BigDecimal bigDecimal) {
+      if (bigDecimal.precision() <= DecimalVector.MAX_PRECISION) {
+        return bigDecimal;
+      }
+      int int_part = bigDecimal.precision() - bigDecimal.scale();
+      if (int_part > DecimalVector.MAX_PRECISION) {
+        throw new UnsupportedOperationException("Integers with more than 38 digits are not supported");
+      }
+      // We need to reduce the scale to fit the precision
+      // Subtract 1 to ensure that the number is rounded correctly
+      int new_scale = Math.min(bigDecimal.scale(), DecimalVector.MAX_PRECISION - int_part) - 1;
+      new_scale = Math.max(new_scale, 0);
+      return bigDecimal.setScale(new_scale, RoundingMode.FLOOR);
     }
 
     @Override

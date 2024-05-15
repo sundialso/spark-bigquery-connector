@@ -3,6 +3,7 @@ package com.google.cloud.spark.bigquery.pushdowns
 import com.google.cloud.bigquery.connector.common.BigQueryPushdownUnsupportedException
 import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{addAttributeStatement, blockStatement, makeStatement}
 import org.apache.commons.lang.{StringEscapeUtils, StringUtils}
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -13,7 +14,7 @@ import org.apache.spark.unsafe.types.UTF8String
  * Spark Expressions are recursively pattern matched. Expressions that differ across Spark versions should be implemented in subclasses
  *
  */
-abstract class SparkExpressionConverter {
+abstract class SparkExpressionConverter extends Logging {
   /**
    * Tries to convert Spark expressions by matching across the different families of expressions such as Aggregate, Boolean etc.
    * @param expression
@@ -29,6 +30,7 @@ abstract class SparkExpressionConverter {
       .orElse(convertMiscellaneousExpressions(expression, fields))
       .orElse(convertStringExpressions(expression, fields))
       .orElse(convertWindowExpressions(expression, fields))
+      .orElse(convertArrayExpressions(expression, fields))
       .getOrElse(throw new BigQueryPushdownUnsupportedException((s"Pushdown unsupported for ${expression.prettyName}")))
   }
 
@@ -41,6 +43,11 @@ abstract class SparkExpressionConverter {
         // Take only the first child, as all of the functions below have only one.
         expression.children.headOption.flatMap(agg_fun => {
           Option(agg_fun match {
+            case _: MaxBy =>
+              ConstantString("MAX_BY") +
+                blockStatement(
+                  convertStatements(fields, agg_fun.children: _*)
+                )
             case _: Average | _: Corr | _: CovPopulation | _: CovSample | _: Count |
                  _: Max | _: Min | _: Sum | _: StddevPop | _: StddevSamp |
                  _: VariancePop | _: VarianceSamp =>
@@ -411,6 +418,45 @@ abstract class SparkExpressionConverter {
   def generateWindowFrameFromSpecDefinition(windowSpec: SpecifiedWindowFrame, lower: String, upper: String): String = {
     windowSpec.frameType.sql + " " + ConstantString("BETWEEN") + " " + lower + " " + ConstantString("AND") + " " + upper
   }
+
+  def convertArrayExpressions(expression: Expression, fields: Seq[Attribute]): Option[BigQuerySQLStatement] = {
+    Option(expression match {
+      // This is a workaround where spark codegen generates a Size expression instead of ArraySize
+      case _: Size =>
+        ConstantString("ARRAY_LENGTH") + blockStatement(convertStatements(fields, expression.children: _*))
+      case Sequence(start, stop, step, _) =>
+        convertSequence(start, stop, step, fields)
+      case _ => null
+    })
+  }
+
+  def convertSequence(start: Expression, stop: Expression, step: Option[Expression], fields: Seq[Attribute]): BigQuerySQLStatement = {
+    val startExpr = convertStatement(start, fields)
+    val stopExpr = convertStatement(stop, fields)
+    step match {
+      case Some(stepValue) =>
+        val stepExpr = ConstantString(stepValue.toString())
+        (start.dataType, stop.dataType, stepValue.dataType) match {
+          case (_: DateType , _: DateType, _) =>
+            ConstantString("GENERATE_DATE_ARRAY(") + startExpr + ConstantString(", ") + stopExpr + ConstantString(", ") + stepExpr + ConstantString(")")
+          case (_: TimestampType, _: TimestampType, _) =>
+            ConstantString("GENERATE_DATE_ARRAY(") + startExpr + ConstantString(", ") + stopExpr + ConstantString(", ") + stepExpr + ConstantString(")")
+          case _ =>
+            ConstantString("GENERATE_ARRAY(") +
+              startExpr + ConstantString(", ") + stopExpr + ConstantString(", ") + stepExpr + ConstantString(")")
+        }
+      case None =>
+        (start.dataType, stop.dataType) match {
+          case (_: DateType, _: DateType) =>
+            ConstantString("GENERATE_DATE_ARRAY(") + startExpr + ConstantString(", ") + stopExpr + ConstantString(", INTERVAL 1 DAY)")
+          case (_: TimestampType, _: TimestampType) =>
+            ConstantString("GENERATE_DATE_ARRAY(") + startExpr + ConstantString(", ") + stopExpr + ConstantString(", INTERVAL 1 DAY)")
+          case _ =>
+            ConstantString("GENERATE_ARRAY(") + startExpr + ConstantString(", ") + stopExpr + ConstantString(")")
+        }
+    }
+  }
+
 
   /** Attempts a best effort conversion from a SparkType
    * to a BigQuery type to be used in a Cast.
