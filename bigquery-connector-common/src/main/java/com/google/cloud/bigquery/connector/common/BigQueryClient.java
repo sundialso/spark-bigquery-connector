@@ -423,9 +423,11 @@ public class BigQueryClient {
 
     TableDefinition tableDefinition = table.getDefinition();
     TableDefinition.Type tableType = tableDefinition.getType();
-    if (TableDefinition.Type.TABLE == tableType
-        || TableDefinition.Type.EXTERNAL == tableType
-        || TableDefinition.Type.SNAPSHOT == tableType) {
+    if (TableDefinition.Type.TABLE == tableType) {
+      table = BigQueryUtil.updateTableInfoWithPseudoColumns(table);
+      return table;
+    }
+    if (TableDefinition.Type.EXTERNAL == tableType || TableDefinition.Type.SNAPSHOT == tableType) {
       return table;
     }
     if (TableDefinition.Type.VIEW == tableType

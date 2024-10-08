@@ -882,4 +882,60 @@ public class BigQueryUtil {
     return table.getDefinition().getType() == TableDefinition.Type.TABLE
         && !isBigLakeManagedTable(table);
   }
+
+  public static TableInfo updateTableInfoWithPseudoColumns(TableInfo tableInfo) {
+    TableDefinition tableDefinition = tableInfo.getDefinition();
+    if (tableDefinition instanceof StandardTableDefinition) {
+      Schema schema = getSchemaWithPseudoColumns(tableInfo);
+      return tableInfo
+          .toBuilder()
+          .setDefinition(tableDefinition.toBuilder().setSchema(schema).build())
+          .build();
+    }
+    return tableInfo;
+  }
+
+  // CPD-OFF
+
+  /**
+   * Retrieves and returns BigQuery Schema from TableInfo. If the table support pseudo columns, they
+   * are added to schema before schema is returned to the caller. Refer SchemaConverters.java for
+   * more details.
+   */
+  private static Schema getSchemaWithPseudoColumns(TableInfo tableInfo) {
+    TimePartitioning timePartitioning = null;
+    TableDefinition tableDefinition = tableInfo.getDefinition();
+    if (tableDefinition instanceof StandardTableDefinition) {
+      timePartitioning = ((StandardTableDefinition) tableDefinition).getTimePartitioning();
+    }
+    boolean tableSupportsPseudoColumns =
+        timePartitioning != null
+            && timePartitioning.getField() == null
+            && timePartitioning.getType() != null;
+
+    Schema schema = tableDefinition.getSchema();
+    if (tableSupportsPseudoColumns) {
+      ArrayList<Field> fields = new ArrayList<Field>(schema.getFields());
+      fields.add(
+          createBigQueryFieldBuilder(
+                  "_PARTITIONTIME", LegacySQLTypeName.TIMESTAMP, Field.Mode.NULLABLE, null)
+              .build());
+      // Issue #748: _PARTITIONDATE exists only when partition type is day (not hour/month/year)
+      if (timePartitioning.getType().equals(TimePartitioning.Type.DAY)) {
+        fields.add(
+            createBigQueryFieldBuilder(
+                    "_PARTITIONDATE", LegacySQLTypeName.DATE, Field.Mode.NULLABLE, null)
+                .build());
+      }
+      schema = Schema.of(fields);
+    }
+    return schema;
+  }
+
+  private static Field.Builder createBigQueryFieldBuilder(
+      String name, LegacySQLTypeName type, Field.Mode mode, FieldList subFields) {
+    return Field.newBuilder(name, type, subFields).setMode(mode);
+  }
+
+  // CPD-ON
 }
