@@ -31,6 +31,7 @@ abstract class SparkExpressionConverter extends Logging {
       .orElse(convertStringExpressions(expression, fields))
       .orElse(convertWindowExpressions(expression, fields))
       .orElse(convertArrayExpressions(expression, fields))
+      .orElse(convertJsonExpressions(expression, fields))
       .getOrElse(throw new BigQueryPushdownUnsupportedException((s"Pushdown unsupported for ${expression.prettyName}")))
   }
 
@@ -417,6 +418,14 @@ abstract class SparkExpressionConverter extends Logging {
 
   def generateWindowFrameFromSpecDefinition(windowSpec: SpecifiedWindowFrame, lower: String, upper: String): String = {
     windowSpec.frameType.sql + " " + ConstantString("BETWEEN") + " " + lower + " " + ConstantString("AND") + " " + upper
+  }
+
+  def convertJsonExpressions(expression: Expression, fields: Seq[Attribute]): Option[BigQuerySQLStatement] = {
+    Option(expression match {
+      case GetJsonObject(json, path) =>
+        ConstantString("JSON_VALUE(") + convertStatement(json, fields) + ConstantString(", ") + convertStatement(path, fields)  + ConstantString(")")
+      case _ => null
+    })
   }
 
   def convertArrayExpressions(expression: Expression, fields: Seq[Attribute]): Option[BigQuerySQLStatement] = {
