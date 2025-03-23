@@ -16,11 +16,13 @@
 package com.google.cloud.bigquery.connector.common;
 
 import java.io.Serializable;
+import java.util.Map;
 import java.util.Optional;
 
 /** Factory to create application level tracers for bigquery operations. */
 public interface BigQueryTracerFactory extends Serializable {
   BigQueryStorageReadRowsTracer newReadRowsTracer(
+      Map<String, String> tracerTags,
       String streamName,
       BigQueryMetrics bigQueryMetrics,
       Optional<ReadSessionMetrics> readSessionMetrics);

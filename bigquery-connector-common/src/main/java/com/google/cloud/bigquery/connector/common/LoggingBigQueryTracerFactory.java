@@ -15,6 +15,7 @@
  */
 package com.google.cloud.bigquery.connector.common;
 
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 
@@ -32,10 +33,11 @@ public class LoggingBigQueryTracerFactory implements BigQueryTracerFactory {
 
   @Override
   public BigQueryStorageReadRowsTracer newReadRowsTracer(
+      Map<String, String> tracerTags,
       String streamName,
       BigQueryMetrics bigQueryMetrics,
       Optional<ReadSessionMetrics> readSessionMetrics) {
     return new LoggingBigQueryStorageReadRowsTracer(
-        streamName, logIntervalPowerOf2, bigQueryMetrics, readSessionMetrics);
+        tracerTags, streamName, logIntervalPowerOf2, bigQueryMetrics, readSessionMetrics);
   }
 }

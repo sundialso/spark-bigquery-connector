@@ -27,6 +27,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -154,7 +155,8 @@ public class ParallelArrowReaderTest {
               ImmutableList.of(r1),
               executor,
               new VectorLoader(root),
-              new LoggingBigQueryStorageReadRowsTracer("stream_name", 2, null, null));
+              new LoggingBigQueryStorageReadRowsTracer(
+                  new HashMap<>(), "stream_name", 2, null, null));
       IOException e = Assert.assertThrows(IOException.class, reader::next);
       assertThat(e).isSameInstanceAs(exception);
     }
@@ -185,7 +187,11 @@ public class ParallelArrowReaderTest {
               executor,
               loader,
               new LoggingBigQueryStorageReadRowsTracer(
-                  "stream_name", 2, mock(BigQueryMetrics.class), Optional.empty()));
+                  new HashMap<>(),
+                  "stream_name",
+                  2,
+                  mock(BigQueryMetrics.class),
+                  Optional.empty()));
 
       ExecutorService oneOff = Executors.newSingleThreadExecutor();
       Instant start = Instant.now();

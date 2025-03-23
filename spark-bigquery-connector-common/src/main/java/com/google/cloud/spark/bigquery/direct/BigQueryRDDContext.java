@@ -35,11 +35,14 @@ import com.google.cloud.spark.bigquery.metrics.SparkMetricsSource;
 import com.google.common.base.Joiner;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.spark.InterruptibleIterator;
 import org.apache.spark.Partition;
+import org.apache.spark.SparkConf;
 import org.apache.spark.SparkEnv;
 import org.apache.spark.TaskContext;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -82,10 +85,13 @@ class BigQueryRDDContext implements Serializable {
     BigQueryPartition bigQueryPartition = (BigQueryPartition) split;
     SparkMetricsSource sparkMetricsSource = new SparkMetricsSource();
     SparkEnv.get().metricsSystem().registerSource(sparkMetricsSource);
+    SparkConf sparkConf = SparkEnv.get().conf();
+    Map<String, String> tracerTags = getTracerTags(sparkConf);
+
     // Read session metrics are not supported for dsv1
     BigQueryStorageReadRowsTracer tracer =
         bigQueryTracerFactory.newReadRowsTracer(
-            Joiner.on(",").join(streamNames), sparkMetricsSource, Optional.empty());
+            tracerTags, Joiner.on(",").join(streamNames), sparkMetricsSource, Optional.empty());
 
     ReadRowsRequest.Builder request =
         ReadRowsRequest.newBuilder().setReadStream(bigQueryPartition.getStream());
@@ -131,6 +137,20 @@ class BigQueryRDDContext implements Serializable {
         new ScalaIterator<InternalRow>(
             new InternalRowIterator(readRowsResponseIterator, converter, readRowsHelper, tracer)));
   }
+
+  // CPD-OFF
+  private Map<String, String> getTracerTags(SparkConf sparkConf) {
+    Map<String, String> tracerTags = new HashMap<>();
+    tracerTags.put("application_name", sparkConf.get("spark.app.name", "unknown_application_name"));
+    tracerTags.put(
+        "tenant_slug", sparkConf.get("spark.sundial.tenant_slug", "unknown_tenant_slug"));
+    tracerTags.put(
+        "sundial_table_id", sparkConf.get("spark.sundial.table_id", "unknown_sundial_table_id"));
+    tracerTags.put("run_id", sparkConf.get("spark.sundial.run_id", "unknown_run_id"));
+    tracerTags.put("bigquery_table_id", "query_pushdown");
+    return tracerTags;
+  }
+  // CPD-ON
 
   public Partition[] getPartitions() {
     return partitions;

@@ -19,6 +19,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.Mockito.mock;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,7 +32,11 @@ public class LoggingBigQueryStorageReadRowsTracerTest {
   public void setup() {
     loggingTracer =
         new LoggingBigQueryStorageReadRowsTracer(
-            "streamName", /*powerOfTwoLogging*/ 3, mock(BigQueryMetrics.class), Optional.empty());
+            new HashMap<>(),
+            "streamName", /*powerOfTwoLogging*/
+            3,
+            mock(BigQueryMetrics.class),
+            Optional.empty());
     tracer = loggingTracer;
   }
 
@@ -112,7 +117,8 @@ public class LoggingBigQueryStorageReadRowsTracerTest {
   @Test
   public void testForkWithPrefix() {
     loggingTracer =
-        new LoggingBigQueryStorageReadRowsTracer("streamName", /*powerOfTwoLogging*/ 3, null, null);
+        new LoggingBigQueryStorageReadRowsTracer(
+            new HashMap<>(), "streamName", /*powerOfTwoLogging*/ 3, null, null);
     LoggingBigQueryStorageReadRowsTracer newTracer =
         (LoggingBigQueryStorageReadRowsTracer) tracer.forkWithPrefix("newPrefix");
     assertThat(newTracer.getStreamName()).isEqualTo("id-newPrefix-streamName");

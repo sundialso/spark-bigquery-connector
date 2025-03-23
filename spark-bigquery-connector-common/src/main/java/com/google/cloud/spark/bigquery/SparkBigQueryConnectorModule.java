@@ -18,6 +18,7 @@ package com.google.cloud.spark.bigquery;
 import com.google.cloud.bigquery.connector.common.BigQueryClient;
 import com.google.cloud.bigquery.connector.common.BigQueryConfig;
 import com.google.cloud.bigquery.connector.common.BigQueryJobCompletionListener;
+import com.google.cloud.bigquery.connector.common.DatadogClient;
 import com.google.cloud.bigquery.connector.common.EnvironmentContext;
 import com.google.cloud.bigquery.connector.common.UserAgentProvider;
 import com.google.cloud.spark.bigquery.events.BigQueryJobCompletedEvent;
@@ -78,6 +79,7 @@ public class SparkBigQueryConnectorModule implements Module {
                 public void onApplicationEnd(SparkListenerApplicationEnd applicationEnd) {
                   logger.info("In SparkListener.onApplicationEnd, going to activate cleanup jobs");
                   BigQueryClient.runCleanupJobs();
+                  DatadogClient.shutdown();
                 }
               });
       registeredCleanupListener = true;

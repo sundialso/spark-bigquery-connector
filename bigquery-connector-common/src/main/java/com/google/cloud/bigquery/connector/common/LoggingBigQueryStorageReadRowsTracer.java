@@ -19,6 +19,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,11 +48,15 @@ public class LoggingBigQueryStorageReadRowsTracer implements BigQueryStorageRead
 
   Optional<ReadSessionMetrics> readSessionMetrics;
 
+  private final Map<String, String> tracerTags;
+
   LoggingBigQueryStorageReadRowsTracer(
+      Map<String, String> tracerTags,
       String streamName,
       int logIntervalPowerOf2,
       BigQueryMetrics bigQueryMetrics,
       Optional<ReadSessionMetrics> readSessionMetrics) {
+    this.tracerTags = tracerTags;
     this.streamName = streamName;
     this.logIntervalPowerOf2 = logIntervalPowerOf2;
     this.bigQueryMetrics = bigQueryMetrics;
@@ -153,6 +158,12 @@ public class LoggingBigQueryStorageReadRowsTracer implements BigQueryStorageRead
           metrics.incrementParseTimeAccumulator(getParseTimeInMilliSec());
           metrics.incrementScanTimeAccumulator(getScanTimeInMilliSec());
         });
+    SundialBigQueryMetricsUtil.sendMetricsToDatadog(
+        tracerTags,
+        getRowsRead(),
+        getBytesRead(),
+        getParseTimeInMilliSec(),
+        getScanTimeInMilliSec());
     linesLogged++;
   }
 
@@ -167,7 +178,11 @@ public class LoggingBigQueryStorageReadRowsTracer implements BigQueryStorageRead
   @Override
   public BigQueryStorageReadRowsTracer forkWithPrefix(String id) {
     return new LoggingBigQueryStorageReadRowsTracer(
-        "id-" + id + "-" + streamName, logIntervalPowerOf2, bigQueryMetrics, readSessionMetrics);
+        tracerTags,
+        "id-" + id + "-" + streamName,
+        logIntervalPowerOf2,
+        bigQueryMetrics,
+        readSessionMetrics);
   }
 
   @Override

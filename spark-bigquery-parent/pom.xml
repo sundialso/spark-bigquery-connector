@@ -661,6 +661,34 @@
                             <shadedPattern>com.google.cloud.spark.bigquery.repackaged.net.bytebuddy</shadedPattern>
                         </relocation>
                         <relocation>
+                            <pattern>software.amazon</pattern>
+                            <shadedPattern>com.google.cloud.spark.bigquery.repackaged.software.amazon</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>okhttp3</pattern>
+                            <shadedPattern>com.google.cloud.spark.bigquery.repackaged.okhttp3</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>okio</pattern>
+                            <shadedPattern>com.google.cloud.spark.bigquery.repackaged.okio</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.jetbrains</pattern>
+                            <shadedPattern>com.google.cloud.spark.bigquery.repackaged.org.jetbrains</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.intellij</pattern>
+                            <shadedPattern>com.google.cloud.spark.bigquery.repackaged.org.intellij</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>kotlin</pattern>
+                            <shadedPattern>com.google.cloud.spark.bigquery.repackaged.kotlin</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.reactivestreams</pattern>
+                            <shadedPattern>com.google.cloud.spark.bigquery.repackaged.org.reactivestreams</shadedPattern>
+                        </relocation>
+                        <relocation>
                             <pattern>org.apache.arrow</pattern>
                             <shadedPattern>com.google.cloud.spark.bigquery.repackaged.org.apache.arrow</shadedPattern>
                         </relocation>

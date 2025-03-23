@@ -33,6 +33,7 @@ public class ArrowInputPartitionContextTest {
     new ObjectOutputStream(new ByteArrayOutputStream())
         .writeObject(
             new ArrowInputPartitionContext(
+                /* tableNameOrQuery= */ "tableName",
                 /* bigQueryClientFactory= */ null,
                 /* tracerFactory= */ null,
                 Lists.newArrayList("streamName"),

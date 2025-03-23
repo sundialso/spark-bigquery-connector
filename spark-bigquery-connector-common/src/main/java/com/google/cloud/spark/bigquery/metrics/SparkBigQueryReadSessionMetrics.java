@@ -62,7 +62,6 @@ public class SparkBigQueryReadSessionMetrics extends SparkListener
     this.readDataFormat = readDataFormat;
     this.dataOrigin = dataOrigin;
     this.numReadStreams = numReadStreams;
-
     this.bytesReadAccumulator =
         sparkSession
             .sparkContext()

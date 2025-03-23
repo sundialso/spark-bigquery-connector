@@ -225,6 +225,14 @@ public class BigQueryDataSourceReaderContext {
     }
   }
 
+  private String getTableNameOrQuery() {
+    if (readTableOptions.query().isPresent()) {
+      return readTableOptions.query().get();
+    } else {
+      return tableId.getTable();
+    }
+  }
+
   public Stream<InputPartitionContext<ColumnarBatch>> planBatchInputPartitionContexts() {
     if (!enableBatchRead()) {
       throw new IllegalStateException("Batch reads should not be enabled");
@@ -264,6 +272,7 @@ public class BigQueryDataSourceReaderContext {
             .map(
                 streams ->
                     new ArrowInputPartitionContext(
+                        getTableNameOrQuery(),
                         bigQueryReadClientFactory,
                         bigQueryTracerFactory,
                         streams.stream()
