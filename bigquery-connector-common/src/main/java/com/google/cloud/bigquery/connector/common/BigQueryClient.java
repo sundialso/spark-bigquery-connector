@@ -988,6 +988,31 @@ public class BigQueryClient {
       return createTableFromQuery();
     }
 
+    /**
+     * Sets the expiration time for the temporary table and registers a cleanup job.
+     *
+     * @param failOnTableNotFound if true, throws an exception if the table was not created
+     * @return the updated table info
+     */
+    private TableInfo setTempTableExpirationAndCleanup(boolean failOnTableNotFound) {
+      TableInfo createdTable = bigQueryClient.getTable(tempTable);
+      if (createdTable == null) {
+        if (failOnTableNotFound) {
+          throw new BigQueryException(
+              BaseServiceException.UNKNOWN_CODE,
+              String.format("Table %s was not created", tempTable));
+        }
+        return null;
+      }
+      // Registering a cleanup job
+      CLEANUP_JOBS.add(() -> bigQueryClient.deleteTable(tempTable));
+      // add expiration time to the table
+      long expirationTime =
+          createdTable.getCreationTime() + TimeUnit.MINUTES.toMillis(expirationTimeInMinutes);
+      return bigQueryClient.update(
+          createdTable.toBuilder().setExpirationTime(expirationTime).build());
+    }
+
     TableInfo createTableFromQuery() {
       log.info("DestinationTable is {}", tempTable);
       JobInfo jobInfo =
@@ -1000,17 +1025,13 @@ public class BigQueryClient {
       log.info("running query {}", querySql);
       JobInfo completedJobInfo = bigQueryClient.waitForJob(bigQueryClient.create(jobInfo));
       if (completedJobInfo.getStatus().getError() != null) {
+        // cleanup the table if the job failed but only if the table was created
+        setTempTableExpirationAndCleanup(false);
         throw BigQueryUtil.convertToBigQueryException(completedJobInfo.getStatus().getError());
       }
-      // Registering a cleanup job
-      CLEANUP_JOBS.add(() -> bigQueryClient.deleteTable(tempTable));
-      // add expiration time to the table
-      TableInfo createdTable = bigQueryClient.getTable(tempTable);
-      long expirationTime =
-          createdTable.getCreationTime() + TimeUnit.MINUTES.toMillis(expirationTimeInMinutes);
-      Table updatedTable =
-          bigQueryClient.update(createdTable.toBuilder().setExpirationTime(expirationTime).build());
-      return updatedTable;
+      // add expiration time to the table and register cleanup job
+      // if the table was not created, but the job was successful, this will throw an exception
+      return setTempTableExpirationAndCleanup(true);
     }
 
     Job waitForJob(Job job) {
