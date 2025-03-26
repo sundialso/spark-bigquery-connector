@@ -54,16 +54,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalLong;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -495,12 +486,20 @@ public class BigQueryClient {
   }
 
   TableId createDestinationTable(
-      Optional<String> referenceProject, Optional<String> referenceDataset) {
+      Optional<String> referenceProject, Optional<String> referenceDataset, String querySql) {
     String project = materializationProject.orElse(referenceProject.orElse(null));
     String dataset = materializationDataset.orElse(referenceDataset.orElse(null));
     String name =
         String.format(
             "_bqc_%s", UUID.randomUUID().toString().toLowerCase(Locale.ENGLISH).replace("-", ""));
+    String stackTrace =
+        Arrays.stream(Thread.currentThread().getStackTrace())
+            .limit(100)
+            .map(StackTraceElement::toString)
+            .collect(Collectors.joining("\n"));
+    log.info(
+        "Creating temporary table {} for query {} with stack trace {}", name, querySql, stackTrace);
+    DatadogClient.sendBigQueryTempTableLog(name, querySql);
     return project == null ? TableId.of(dataset, name) : TableId.of(project, dataset, name);
   }
 
@@ -657,7 +656,7 @@ public class BigQueryClient {
    * @return a reference to the table
    */
   public TableInfo materializeQueryToTable(String querySql, int expirationTimeInMinutes) {
-    TableId tableId = createDestinationTable(Optional.empty(), Optional.empty());
+    TableId tableId = createDestinationTable(Optional.empty(), Optional.empty(), querySql);
     return materializeTable(querySql, tableId, expirationTimeInMinutes);
   }
 
@@ -671,7 +670,8 @@ public class BigQueryClient {
    */
   public TableInfo materializeQueryToTable(
       String querySql, int expirationTimeInMinutes, Map<String, String> additionalQueryJobLabels) {
-    TableId destinationTableId = createDestinationTable(Optional.empty(), Optional.empty());
+    TableId destinationTableId =
+        createDestinationTable(Optional.empty(), Optional.empty(), querySql);
     TempTableBuilder tableBuilder =
         new TempTableBuilder(
             this,
@@ -699,7 +699,9 @@ public class BigQueryClient {
       String querySql, TableId viewId, int expirationTimeInMinutes) {
     TableId tableId =
         createDestinationTable(
-            Optional.ofNullable(viewId.getProject()), Optional.ofNullable(viewId.getDataset()));
+            Optional.ofNullable(viewId.getProject()),
+            Optional.ofNullable(viewId.getDataset()),
+            querySql);
     return materializeTable(querySql, tableId, expirationTimeInMinutes);
   }
 
@@ -1014,6 +1016,18 @@ public class BigQueryClient {
     }
 
     TableInfo createTableFromQuery() {
+      String stackTrace =
+          Arrays.stream(Thread.currentThread().getStackTrace())
+              .limit(100)
+              .map(StackTraceElement::toString)
+              .collect(Collectors.joining("\n"));
+      log.info(
+          "Running query {} to create temporary table {} with stack trace {}",
+          querySql,
+          tempTable,
+          stackTrace);
+      DatadogClient.sendBigQueryTempTableLog(tempTable.getTable(), querySql);
+
       log.info("DestinationTable is {}", tempTable);
       JobInfo jobInfo =
           JobInfo.of(

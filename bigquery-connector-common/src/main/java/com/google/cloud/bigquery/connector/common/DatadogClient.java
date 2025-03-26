@@ -21,6 +21,8 @@ public class DatadogClient {
   private static final Logger LOG = LoggerFactory.getLogger(DatadogClient.class);
 
   private static final String DATADOG_API_URL = "https://api.datadoghq.com/api/v1/series";
+  private static final String DATADOG_LOGS_URL =
+      "https://http-intake.logs.datadoghq.com/api/v2/logs";
   private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -184,6 +186,56 @@ public class DatadogClient {
             response.body() != null ? response.body().string() : "");
       } else {
         LOG.debug("Successfully sent metrics to Datadog");
+      }
+    }
+  }
+
+  public static synchronized void sendBigQueryTempTableLog(String tableId, String querySql) {
+    if (!initialized && !initFailed) {
+      initialize();
+    }
+
+    if (!initialized) {
+      LOG.warn("Datadog client not initialized, skipping log send");
+      return;
+    }
+
+    try {
+      ObjectNode logEntry = MAPPER.createObjectNode();
+      logEntry.put(
+          "message", String.format("Temporary table %s created for query %s", tableId, querySql));
+      logEntry.put("level", "info");
+      logEntry.put("source", "bigquery");
+      logEntry.put("service", "bigquery-connector");
+
+      sendLogToDatadog(logEntry);
+      LOG.debug("Sent BigQuery temporary table log to Datadog for table: {}", tableId);
+    } catch (Exception e) {
+      LOG.error("Error sending log to Datadog", e);
+    }
+  }
+
+  /** Send a log to Datadog API */
+  private static void sendLogToDatadog(ObjectNode logEntry) throws IOException {
+    String jsonBody = MAPPER.writeValueAsString(logEntry);
+    RequestBody body = RequestBody.create(jsonBody, JSON);
+
+    Request request =
+        new Request.Builder()
+            .url(DATADOG_LOGS_URL)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("DD-API-KEY", apiKey)
+            .post(body)
+            .build();
+
+    try (Response response = httpClient.newCall(request).execute()) {
+      if (!response.isSuccessful()) {
+        LOG.error(
+            "Failed to send log to Datadog: {} {}",
+            response.code(),
+            response.body() != null ? response.body().string() : "");
+      } else {
+        LOG.debug("Successfully sent log to Datadog");
       }
     }
   }
