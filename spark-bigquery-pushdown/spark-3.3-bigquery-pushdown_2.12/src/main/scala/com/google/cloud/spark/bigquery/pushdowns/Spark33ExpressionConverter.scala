@@ -17,13 +17,30 @@
 package com.google.cloud.spark.bigquery.pushdowns
 
 import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.blockStatement
-import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, CheckOverflow, Expression, Like, ScalarSubquery, UnaryMinus}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, CheckOverflow, Expression, Like, ScalarSubquery, TimestampAdd, UnaryMinus}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
 /**
  * Convert Spark 3.3 specific expressions to SQL
  */
 class Spark33ExpressionConverter(expressionFactory: SparkExpressionFactory, sparkPlanFactory: SparkPlanFactory) extends SparkExpressionConverter() {
+
+  // Spark 3.4+ has TimestampAdd, so we add specific handling for it in spark-3.3 
+  // which we've made compatible with Spark 3.5 as well.
+  override def convertDateExpressions(expression: Expression, fields: Seq[Attribute]): Option[BigQuerySQLStatement] = {
+    Option(expression match {
+      case TimestampAdd(unit, quantity, startDate, _) =>
+        ConstantString("DATETIME_ADD") +
+          blockStatement(
+            convertStatement(startDate, fields) + ", INTERVAL " +
+            convertStatement(quantity, fields) + " " + unit
+          )
+      case _ => 
+        // Call parent method for other date expressions
+        super.convertDateExpressions(expression, fields).orNull
+    })
+  }
+
   override def convertScalarSubqueryExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement = {
     expression match {
       case ScalarSubquery(plan, _, _, joinCond, _, _) if joinCond.isEmpty =>
